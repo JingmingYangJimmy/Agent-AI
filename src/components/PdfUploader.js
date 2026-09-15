@@ -1,7 +1,7 @@
 import React from "react";
 import axios from "axios"; // Import axios for HTTP requests
 import { InboxOutlined } from "@ant-design/icons";
-import { message, Upload } from "antd";
+import { message, Modal, Upload } from "antd";
 
 const { Dragger } = Upload;
 
@@ -46,6 +46,31 @@ const attributes = {
     } else if (status === "error") {
       message.error(`${info.file.name} file upload failed.`);
     }
+  },
+  // Ask once, then delete on the server. Resolving false keeps the file in the list.
+  onRemove(file) {
+    return new Promise((resolve) => {
+      Modal.confirm({
+        title: `Delete ${file.name}?`,
+        content: "This will remove the file from the server.",
+        okText: "Delete",
+        okType: "danger",
+        onOk: async () => {
+          try {
+            await axios.delete(
+              `${DOMAIN}/upload/${encodeURIComponent(file.name)}`
+            );
+            message.success(`${file.name} deleted.`);
+            resolve(true);
+          } catch (error) {
+            console.error("Error deleting file: ", error);
+            message.error(`${file.name} delete failed.`);
+            resolve(false);
+          }
+        },
+        onCancel: () => resolve(false),
+      });
+    });
   },
   onDrop(e) {
     console.log("Dropped files", e.dataTransfer.files);

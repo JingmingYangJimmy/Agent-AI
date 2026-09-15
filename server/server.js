@@ -2,6 +2,8 @@ import express from "express";//framework of API
 import cors from "cors";//communicate between frontend and backend
 import dotenv from "dotenv";
 import multer from "multer"; //user upload file, better not do this way, we can store it in aws s3, or GGS
+import fs from "fs/promises";
+import path from "path";
 import chat from "./chat.js";
 import chatMCP from "./chat-mcp.js";
 
@@ -38,6 +40,21 @@ app.post("/upload", upload.single("file"), (req, res) => {
   // Use multer to handle file upload
   filePaths.add(req.file.path); // The path where the file is temporarily saved
   res.send(req.file.path + " upload successfully.");
+});
+
+app.delete("/upload/:filename", async (req, res) => {
+  // basename stops names like "../server.js" from deleting files outside uploads/
+  const filePath = path.join("uploads", path.basename(req.params.filename));
+  filePaths.delete(filePath);
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      // ENOENT = file already gone, which is fine
+      return res.status(500).send("Delete failed.");
+    }
+  }
+  res.send(filePath + " deleted successfully.");
 });
 
 app.get("/chat", async (req, res) => {
