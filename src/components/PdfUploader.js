@@ -52,7 +52,7 @@ const attributes = {
   },
 };
 
-const PdfUploader = () => {//how to use these 3 classes?
+const PdfUploader = () => {//UI
   return (
     <Dragger {...attributes}>
       <p className="ant-upload-drag-icon">

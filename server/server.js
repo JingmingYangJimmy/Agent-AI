@@ -26,7 +26,7 @@ const upload = multer({ storage: storage });
 
 const PORT = 5001;//javascript default port
 
-let filePath;
+const filePaths = new Set(); // all uploaded files, Set avoids duplicates when the same file is uploaded again
 
 //we are using stateless (RESTFUL API), since we can scale up (horizontal scaling)
 //for real time, do not use REST API, use web socket (multiple chat room)
@@ -36,19 +36,19 @@ let filePath;
 
 app.post("/upload", upload.single("file"), (req, res) => {
   // Use multer to handle file upload
-  filePath = req.file.path; // The path where the file is temporarily saved
-  res.send(filePath + " upload successfully.");
+  filePaths.add(req.file.path); // The path where the file is temporarily saved
+  res.send(req.file.path + " upload successfully.");
 });
 
 app.get("/chat", async (req, res) => {
-  if (!filePath) {
+  if (filePaths.size === 0) {
     return res.status(400).send({
       ragAnswer: "Please upload a PDF first.",
       mcpAnswer: "",
     });
   }
 
-  const ragResp = await chat(filePath, req.query.question);
+  const ragResp = await chat([...filePaths], req.query.question);
   const mcpResp = await chatMCP(req.query.question);
 
   res.send({

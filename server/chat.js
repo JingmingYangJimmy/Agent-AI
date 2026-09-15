@@ -6,10 +6,13 @@ import { PromptTemplate } from "@langchain/core/prompts";//co sign similarity, a
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";//we can do youtube video later, not only pdf
 import { VectorStore } from "@langchain/core/vectorstores";
 
-const chat = async (filePath, query) => {
+const chat = async (filePaths, query) => {
     const apiKey = process.env.OPENAI_API_KEY;
-    const loader = new PDFLoader(filePath);
-    const data = await loader.load();
+    // load every uploaded PDF and combine their pages
+    const docsPerFile = await Promise.all(
+        filePaths.map((filePath) => new PDFLoader(filePath).load())
+    );
+    const data = docsPerFile.flat();
     const textsplitters = new RecursiveCharacterTextSplitter({//sever in every 500
         chunkSize: 500,
         chunkOverlap: 0,//we need 10% - 20% overlap, or else the sentece's meaning will be unclear
@@ -31,7 +34,7 @@ const chat = async (filePath, query) => {
         If you don't know the answer, just say that you don't know, don't try to make up an answer.
         Use three sentences maximum and keep the answer as concise as possible.
 
-    {context}//use cosine similarity to find relevant chunks
+    {context} //use cosine similarity to find relevant chunks
     Question: {question}
     Helpful Answer:`;
 
