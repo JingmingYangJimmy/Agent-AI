@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import multer from "multer"; //user upload file, better not do this way, we can store it in aws s3, or GGS
 import fs from "fs/promises";
 import path from "path";
-import chat from "./chat.js";
+import chat, { addFile, removeFile } from "./chat.js";
 import chatMCP from "./chat-mcp.js";
 
 dotenv.config();
@@ -36,16 +36,23 @@ const filePaths = new Set(); // all uploaded files, Set avoids duplicates when t
 //how can we support more users, design a data structure, have an object
 //key: user name  value: file name
 
-app.post("/upload", upload.single("file"), (req, res) => {
+app.post("/upload", upload.single("file"), async (req, res) => {
   // Use multer to handle file upload
-  filePaths.add(req.file.path); // The path where the file is temporarily saved
-  res.send(req.file.path + " upload successfully.");
+  try {
+    await addFile(req.file.path); // embed once here
+    filePaths.add(req.file.path); //to see uploaded or not
+    res.send(req.file.path + " upload successfully.");
+  } catch (error) {
+    console.error("Error embedding file: ", error);
+    res.status(500).send("Upload failed.");
+  }
 });
 
 app.delete("/upload/:filename", async (req, res) => {
   // basename stops names like "../server.js" from deleting files outside uploads/
   const filePath = path.join("uploads", path.basename(req.params.filename));
   filePaths.delete(filePath);
+  removeFile(filePath);
   try {
     await fs.unlink(filePath);
   } catch (error) {
@@ -65,7 +72,7 @@ app.get("/chat", async (req, res) => {
     });
   }
 
-  const ragResp = await chat([...filePaths], req.query.question);
+  const ragResp = await chat(req.query.question);
   const mcpResp = await chatMCP(req.query.question);
 
   res.send({

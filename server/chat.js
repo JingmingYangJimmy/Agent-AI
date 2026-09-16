@@ -6,24 +6,42 @@ import { PromptTemplate } from "@langchain/core/prompts";//co sign similarity, a
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";//we can do youtube video later, not only pdf
 import { VectorStore } from "@langchain/core/vectorstores";
 
-const chat = async (filePaths, query) => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    // load every uploaded PDF and combine their pages
-    const docsPerFile = await Promise.all(
-        filePaths.map((filePath) => new PDFLoader(filePath).load())
+// One shared store for all uploaded files. Each file is embedded once, at upload time.
+let vectorStore = null;
+
+// Created on first use, because dotenv.config() in server.js runs after this file is imported
+const getVectorStore = () => {
+    if (!vectorStore) {
+        const embeddings = new OpenAIEmbeddings({apiKey: process.env.OPENAI_API_KEY});
+        vectorStore = new MemoryVectorStore(embeddings);
+    }
+    return vectorStore;
+};
+
+// Remove all chunks of one file. PDFLoader saves the file path in metadata.source
+export const removeFile = (filePath) => {
+    const store = getVectorStore();
+    store.memoryVectors = store.memoryVectors.filter(
+        (vector) => vector.metadata.source !== filePath
     );
-    const data = docsPerFile.flat();
+};
+
+// Load, split and embed one file, then add it to the store
+export const addFile = async (filePath) => {
+    removeFile(filePath); // delete if it existed or old
+    const loader = new PDFLoader(filePath);
+    const data = await loader.load();
     const textsplitters = new RecursiveCharacterTextSplitter({//sever in every 500
         chunkSize: 500,
         chunkOverlap: 0,//we need 10% - 20% overlap, or else the sentece's meaning will be unclear
     });
 
     const splitDocs = await textsplitters.splitDocuments(data);
-    const embeddings = new OpenAIEmbeddings({apiKey: apiKey});
-    const vectorStore = await MemoryVectorStore.fromDocuments(
-        splitDocs,
-        embeddings,
-    )
+    await getVectorStore().addDocuments(splitDocs); // embedding API is called here, only once per file
+};
+
+const chat = async (query) => {
+    const apiKey = process.env.OPENAI_API_KEY;
 
     const model = new ChatOpenAI({
         model: "gpt-5",
@@ -40,7 +58,7 @@ const chat = async (filePaths, query) => {
 
     const prompt = PromptTemplate.fromTemplate(template);
 
-    const retriever = vectorStore.asRetriever();
+    const retriever = getVectorStore().asRetriever();
     const relevantDocs = await retriever.invoke(query);
 
     // Format context from retrieved documents
@@ -60,5 +78,4 @@ const chat = async (filePaths, query) => {
 };
 
 export default chat;
-//everytime we invoke, we need to run it again. How to do embedding, we store it 1 time, no need to repeat
 //role access, different person access their own data, id
