@@ -33,7 +33,7 @@ export const addFile = async (filePath) => {
     const data = await loader.load();
     const textsplitters = new RecursiveCharacterTextSplitter({//sever in every 500
         chunkSize: 500,
-        chunkOverlap: 0,//we need 10% - 20% overlap, or else the sentece's meaning will be unclear
+        chunkOverlap: 75,//we need 10% - 20% overlap, it is 15%
     });
 
     const splitDocs = await textsplitters.splitDocuments(data);
